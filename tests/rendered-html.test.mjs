@@ -3,6 +3,15 @@ import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
 const outputRoot = new URL("../dist/client/", import.meta.url);
+const pagesBasePath = "/standup-timer";
+
+function getArtifactUrl(pathname) {
+  const relativePath = pathname.startsWith(`${pagesBasePath}/`)
+    ? pathname.slice(pagesBasePath.length + 1)
+    : pathname.replace(/^\//, "");
+
+  return new URL(relativePath, outputRoot);
+}
 
 test("exports the standup and settings routes", async () => {
   const [homeHtml, settingsHtml] = await Promise.all([
@@ -13,7 +22,7 @@ test("exports the standup and settings routes", async () => {
   assert.match(homeHtml, /<title>Daily standup<\/title>/i);
   assert.match(homeHtml, /Daily standup/);
   assert.match(homeHtml, /Preparing the standup/);
-  assert.match(homeHtml, /href="\/settings\/"/);
+  assert.match(homeHtml, new RegExp(`href="${pagesBasePath}/settings/"`));
   assert.doesNotMatch(
     homeHtml,
     /codex-preview|SkeletonPreview|react-loading-skeleton/i,
@@ -26,10 +35,19 @@ test("exports the standup and settings routes", async () => {
 });
 
 test("exports GitHub Pages assets", async () => {
+  const homeHtml = await readFile(new URL("index.html", outputRoot), "utf8");
+  const cssHref = homeHtml.match(/href="([^"]+\.css)"/)?.[1];
+  const jsSrc = homeHtml.match(/src="([^"]+\.js)"/)?.[1];
+
+  assert.ok(cssHref, "The exported page must link to a stylesheet");
+  assert.ok(jsSrc, "The exported page must link to a script");
+
   await Promise.all([
     access(new URL(".nojekyll", outputRoot)),
     access(new URL("favicon.svg", outputRoot)),
     access(new URL("og.png", outputRoot)),
+    access(getArtifactUrl(cssHref)),
+    access(getArtifactUrl(jsSrc)),
   ]);
 });
 
